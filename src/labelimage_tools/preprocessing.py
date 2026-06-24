@@ -49,6 +49,7 @@ def erode_labels(im, structure=None, background=0) -> np.ndarray:
     structure = _structure(structure)
     out = np.full(labels.shape, background, dtype=labels.dtype)
     for label, slc in label_slices(labels, background=background).items():
+        # Erode only this label's object mask; eroded-away pixels stay background.
         sub = labels[slc] == label
         out[slc][ndi.binary_erosion(sub, structure=structure)] = label
     return out
@@ -86,11 +87,15 @@ def dilate_labels(im, structure=None, background=0, background_only: bool = True
     """
     labels = validate_label_image(im, background=background)
     structure = _structure(structure)
+
+    # Pad each object crop enough to include the full dilation footprint.
     rowpad, colpad = structure.shape[0] // 2, structure.shape[1] // 2
     out = labels.copy()
     bg_mask = labels == background
     slices = label_slices(labels, background=background, padding=max(rowpad, colpad))
     for label, slc in slices.items():
+        # Dilate the single-label mask, then decide whether expansion is allowed
+        # only into background pixels or may overwrite existing labels.
         sub = labels[slc] == label
         dilated = ndi.binary_dilation(sub, structure=structure)
         if background_only:
@@ -109,6 +114,7 @@ def dialate_labels(im, structure=None, background=0, background_only: bool = Tru
     is kept because existing internal notebooks and scripts may still use the
     misspelled name.
     """
+    # Keep the original misspelled entry point as a thin wrapper.
     return dilate_labels(
         im,
         structure=structure,
@@ -194,21 +200,29 @@ def fill_internal_gaps_edt(
     labels = validate_label_image(labels, background=background)
     fg = labels != background
     out = labels.copy()
+
+    # Sentinel labels must not collide with real labels.
     max_label = int(labels.max()) if labels.size else 0
     if fill_value <= max_label:
         raise ValueError("fill_value must be larger than all existing labels")
 
+    # Internal holes are background components fully enclosed by foreground.
     filled_fg = ndi.binary_fill_holes(fg)
     holes = filled_fg & (~fg)
     if not np.any(holes):
         return labels.copy()
 
+    # Compute nearest-foreground assignments for all background pixels once.
     distances, inds = ndi.distance_transform_edt(~fg, return_distances=True, return_indices=True)  # type: ignore (linter thinks this could return None)
     assign_all_bg = labels[tuple(inds)]
+
+    # Work hole by hole when a distance threshold can leave sentinel regions.
     cc, n_cc = ndi.label(holes) # type: ignore (linter think we could get None returned here)
     if n_cc == 0:
         return labels.copy()
     if max_distance is None:
+        # Without a threshold, every internal hole pixel receives its nearest
+        # real label directly.
         out[holes] = assign_all_bg[holes]
         return out
 
@@ -216,6 +230,9 @@ def fill_internal_gaps_edt(
         hole_mask = cc[slc] == idx
         sub_dist = distances[slc]
         sub_assign = assign_all_bg[slc]
+
+        # Within each hole, near pixels get real labels and far pixels get one
+        # unique sentinel label for that connected hole component.
         far = hole_mask & (sub_dist > max_distance)
         close = hole_mask & ~far
         if np.any(close):
@@ -248,8 +265,11 @@ def skeletonize_dilate(labels, background=0) -> np.ndarray:
     """
     labels = validate_label_image(labels, background=background)
     out = np.full(labels.shape, background, dtype=labels.dtype)
+
+    # Cross-shaped structure gives a 4-connected exterior border.
     struct = np.array([[0, 1, 0], [1, 1, 1], [0, 1, 0]], dtype=bool)
     for label, slc in label_slices(labels, background=background, padding=1).items():
+        # Dilate the object and keep only the newly reached pixels.
         sub = labels[slc] == label
         border = ndi.binary_dilation(sub, structure=struct) & (~sub)
         out[slc][border] = label
@@ -278,8 +298,11 @@ def skeletonize_erode(labels, background=0) -> np.ndarray:
     """
     labels = validate_label_image(labels, background=background)
     out = np.full(labels.shape, background, dtype=labels.dtype)
+
+    # Cross-shaped structure gives a 4-connected interior border.
     struct = np.array([[0, 1, 0], [1, 1, 1], [0, 1, 0]], dtype=bool)
     for label, slc in label_slices(labels, background=background).items():
+        # Erode the object and keep the pixels removed by erosion.
         sub = labels[slc] == label
         border = (~ndi.binary_erosion(sub, structure=struct)) & sub
         out[slc][border] = label
@@ -345,12 +368,17 @@ def find_non_self_connected_labels(
     lookup no longer assumes consecutive labels.
     """
     labels = validate_label_image(im, background=background)
+
+    # Choose whether components are connected through edges only or also corners.
     structure = ndi.generate_binary_structure(labels.ndim, connectivity)
     bad = {}
     for label, slc in label_slices(labels, background=background, padding=1).items():
         sub = labels[slc] == label
+
+        # Label connected components within this single cell/object.
         cc_labels, n_cc = ndi.label(sub, structure=structure)  # type: ignore (linter thinks this could return None)
         if n_cc > 1:
+            # Return component centroids in global image coordinates.
             centers = ndi.center_of_mass(sub, cc_labels, index=range(1, n_cc + 1))
             bad[int(label)] = np.asarray(
                 [(cy + slc[0].start, cx + slc[1].start) for cy, cx in centers], dtype=float
@@ -360,7 +388,7 @@ def find_non_self_connected_labels(
 
 def remove_non_self_connected_bits(im, background=0, connectivity: int = 1) -> np.ndarray:
     """
-    Remove disconnected fragments from labels.
+    Remove disconnected fragments from labels, keep the largest component.
 
     For each non-background label, connected components are computed within that
     label. If a label has more than one component, only the largest component is
@@ -382,15 +410,17 @@ def remove_non_self_connected_bits(im, background=0, connectivity: int = 1) -> n
         Cleaned label image.
     """
     labels = validate_label_image(im, background=background)
+
+    # Choose whether components are connected through edges only or also corners.
     structure = ndi.generate_binary_structure(labels.ndim, connectivity)
     cleaned = labels.copy()
     for label, slc in label_slices(labels, background=background, padding=1).items():
         sub = labels[slc] == label
-        cc_labels, n_cc = ndi.label(
-            sub,
-            structure=structure,
-        )  # type: ignore (linter thinks this could return None)
+
+        # Label connected components within this single cell/object.
+        cc_labels, n_cc = ndi.label(sub, structure=structure)  # type: ignore (linter thinks this could return None)
         if n_cc > 1:
+            # Keep only the largest component; smaller fragments become background.
             sizes = ndi.sum(sub, cc_labels, index=range(1, n_cc + 1))
             largest = int(np.argmax(sizes)) + 1
             cleaned[slc][(cc_labels != largest) & (cc_labels != 0)] = background
