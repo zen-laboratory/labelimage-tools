@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=68"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -8,7 +8,12 @@ version = "0.1.0"
 description = "Utilities for 2-D labeled tissue segmentation images"
 readme = "README.md"
 requires-python = ">=3.10"
-license = {text = "BSD-3-Clause"}
+license = "BSD-3-Clause"
+license-files = ["LICENSE"]
+authors = [
+  { name = "zen-lab" },
+  { name = "mwappner" },
+]
 dependencies = [
   "numpy>=1.24",
   "scipy>=1.10",
