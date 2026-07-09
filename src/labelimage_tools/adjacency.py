@@ -38,12 +38,6 @@ def adjacency_with_unique_from_labels(
     pairs : np.ndarray
         Unique undirected touching-label pairs as an ``(n, 2)`` array. Each row
         is sorted so the smaller label value appears first.
-
-    Notes
-    -----
-    This preserves the fast vectorized pair-scanning approach from
-    ``segmentation_processing.graph`` while validating inputs and supporting
-    arbitrary non-consecutive integer labels.
     """
     labels = validate_label_image(im, background=background)
     h, w = labels.shape

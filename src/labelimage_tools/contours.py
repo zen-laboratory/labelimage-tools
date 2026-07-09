@@ -25,9 +25,9 @@ def ordered_contour_from_mask(mask) -> np.ndarray:
 
     Notes
     -----
-    This helper is new in ``labelimage-tools``. It wraps
-    :func:`skimage.measure.find_contours` and selects the longest contour, which
-    is usually the exterior boundary for a single connected label mask.
+    This helper wraps :func:`skimage.measure.find_contours` and selects the
+    longest contour, which is usually the exterior boundary for a single
+    connected label mask.
     """
     mask = np.asarray(mask, dtype=bool)
     contours = measure.find_contours(mask.astype(float), 0.5)

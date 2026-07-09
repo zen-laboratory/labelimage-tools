@@ -39,11 +39,6 @@ def erode_labels(im, structure=None, background=0) -> np.ndarray:
         Label image with each non-background object eroded. Pixels removed by
         erosion become ``background``. Small regions may disappear completely.
 
-    Notes
-    -----
-    This is adapted from ``segmentation_processing.img_treatment.erode_labels``.
-    Unlike the original implementation, this version does not assume labels are
-    consecutive; labels such as ``0, 5, 10`` are handled safely.
     """
     labels = validate_label_image(im, background=background)
     structure = _structure(structure)
@@ -193,9 +188,7 @@ def fill_internal_gaps_edt(
     Notes
     -----
     "Internal gaps" are background connected components fully enclosed by
-    foreground. Background connected to the image border is not filled. This
-    preserves the sentinel-label mechanism from the source implementation, which
-    is useful for marking large holes without assigning them to real cells.
+    foreground. Background connected to the image border is not filled. 
     """
     labels = validate_label_image(labels, background=background)
     fg = labels != background
@@ -362,10 +355,6 @@ def find_non_self_connected_labels(
         Mapping ``label -> component centroids`` for labels with multiple
         disconnected blobs. Centroids are in image coordinates ``(y, x)``.
 
-    Notes
-    -----
-    This is adapted from the source function of the same name, but the label
-    lookup no longer assumes consecutive labels.
     """
     labels = validate_label_image(im, background=background)
 
