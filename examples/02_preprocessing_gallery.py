@@ -52,11 +52,11 @@ def _show(ax, labels, title: str) -> None:
 
 def synthetic_cleanup_image() -> np.ndarray:
     """Create a tiny image with a hole and a disconnected fragment."""
-    labels = np.zeros((40, 70), dtype=np.int64)
-    labels[6:34, 6:34] = 5
-    labels[16:24, 16:24] = 0
-    labels[8:30, 42:62] = 10
-    labels[33:36, 63:66] = 10
+    labels = np.zeros((60, 100), dtype=np.int64)
+    labels[6:54, 6:54] = 5
+    labels[16:44, 16:44] = 0
+    labels[8:43, 62:97] = 10
+    labels[53:56, 95:98] = 10
     return labels
 
 
@@ -80,12 +80,12 @@ def main() -> list[Path]:
     preprocessing_gallery = save_figure(fig, "preprocessing_gallery.png")
 
     synthetic = synthetic_cleanup_image()
-    filled = lit.fill_internal_gaps_edt(synthetic, background=BACKGROUND, max_distance=3)
+    filled = lit.fill_internal_gaps_edt(synthetic, background=BACKGROUND, max_distance=5)
     cleaned = lit.remove_non_self_connected_bits(filled, background=BACKGROUND)
 
     fig, axes = plt.subplots(1, 3, figsize=(11, 3.5), layout="constrained")
     _show(axes[0], synthetic, "Hole + fragment")
-    _show(axes[1], filled, "Internal gap filled")
+    _show(axes[1], filled, "Internal gap filled (max_distance=5)")
     _show(axes[2], cleaned, "Small fragment removed")
     cleanup_gallery = save_figure(fig, "cleanup_gallery.png")
 
