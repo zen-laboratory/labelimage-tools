@@ -4,32 +4,62 @@ import json
 from os import PathLike
 from pathlib import Path
 
-import networkx as nx
 import numpy as np
-from PIL import Image
 
-from .adjacency import graph_from_labels
 from ._graph_io import (
+    LabelGraphData,
     _graph_arrays,
-    _json_default,
-    _json_dict_from_graph_data,
-    _graph_to_networkx,
+    _graph_data_from_json_dict,
     _graph_from_arrays,
     _graph_from_networkx,
-    _graph_data_from_json_dict,
+    _graph_to_networkx,
     _infer_graph_format,
-    LabelGraphData,
+    _json_default,
+    _json_dict_from_graph_data,
 )
+from ._optional import optional_import
+from .adjacency import graph_from_labels
 
 
-def load_img(path: str | PathLike) -> np.ndarray:
+def _image_backend(path, backend: str) -> str:
+    backend = backend.lower()
+    if backend != "auto":
+        if backend not in {"tifffile", "pillow"}:
+            raise ValueError("backend must be one of 'auto', 'tifffile', or 'pillow'")
+        return backend
+    suffix = Path(path).suffix.lower()
+    return "tifffile" if suffix in {".tif", ".tiff"} else "pillow"
+
+
+def _tifffile():
+    return optional_import(
+        "tifffile",
+        extra="tiff",
+        feature="TIFF image I/O",
+        package_name="tifffile",
+    )
+
+
+def _pillow_image():
+    return optional_import(
+        "PIL.Image",
+        extra="pillow",
+        feature="Pillow-backed image I/O",
+        package_name="pillow",
+    )
+
+
+def load_img(path: str | PathLike, *, backend: str = "auto") -> np.ndarray:
     """
     Load a labeled image from disk as a NumPy array.
 
     Parameters
     ----------
     path : str or os.PathLike
-        Path to an image file readable by Pillow.
+        Path to an image file.
+    backend : {"auto", "tifffile", "pillow"}, optional
+        Image I/O backend. ``"auto"`` uses ``tifffile`` for ``.tif/.tiff``
+        files and Pillow for other suffixes.
 
     Returns
     -------
@@ -39,22 +69,48 @@ def load_img(path: str | PathLike) -> np.ndarray:
 
     Notes
     -----
-    This is the PIL-based loader extracted from
-    ``segmentation_processing.img_treatment.load_img``. It is intentionally
-    lightweight so callers can decide how to validate or preprocess the array.
+    TIFF paths use ``tifffile`` by default because that is the recommended
+    backend for scientific label images. Other suffixes use Pillow by default.
+    The returned array is intentionally not validated or relabeled.
     """
-    with Image.open(path) as image:
+    backend = _image_backend(path, backend)
+    if backend == "tifffile":
+        return np.asarray(_tifffile().imread(path))
+    image_module = _pillow_image()
+    with image_module.open(path) as image:
         return np.asarray(image)
 
 
-def load_label_image(path: str | PathLike) -> np.ndarray:
+def load_label_image(path: str | PathLike, *, backend: str = "auto") -> np.ndarray:
     """
     Load a labeled image from disk.
 
     This is a clearer public alias for :func:`load_img`. It has the same
     behavior: preserve integer labels and avoid unnecessary image normalization.
     """
-    return load_img(path)
+    return load_img(path, backend=backend)
+
+
+def save_img(path: str | PathLike, image, *, backend: str = "auto", **kwargs) -> None:
+    """
+    Save an array image using ``tifffile`` or Pillow.
+
+    ``backend="auto"`` uses ``tifffile`` for ``.tif/.tiff`` files and Pillow
+    for other suffixes.
+    """
+    backend = _image_backend(path, backend)
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if backend == "tifffile":
+        _tifffile().imwrite(path, np.asarray(image), **kwargs)
+        return
+    image_module = _pillow_image()
+    image_module.fromarray(np.asarray(image)).save(path, **kwargs)
+
+
+def save_label_image(path: str | PathLike, labels, *, backend: str = "auto", **kwargs) -> None:
+    """Save a label image while preserving integer label values."""
+    save_img(path, labels, backend=backend, **kwargs)
 
 
 def save_label_graph(
@@ -102,9 +158,21 @@ def save_label_graph(
         return
     graph = _graph_to_networkx(neighbors, contacts, centroids, pixel_counts, metadata)
     if fmt == "graphml":
+        nx = optional_import(
+            "networkx",
+            extra="graph-standard",
+            feature="GraphML/GEXF graph I/O",
+            package_name="networkx",
+        )
         nx.write_graphml(graph, path)
         return
     if fmt == "gexf":
+        nx = optional_import(
+            "networkx",
+            extra="graph-standard",
+            feature="GraphML/GEXF graph I/O",
+            package_name="networkx",
+        )
         nx.write_gexf(graph, path)
         return
     raise AssertionError("unreachable graph format branch")
@@ -135,8 +203,20 @@ def load_label_graph(path, *, format="auto") -> LabelGraphData:
         with path.open(encoding="utf-8") as fh:
             return _graph_data_from_json_dict(json.load(fh))
     if fmt == "graphml":
+        nx = optional_import(
+            "networkx",
+            extra="graph-standard",
+            feature="GraphML/GEXF graph I/O",
+            package_name="networkx",
+        )
         return _graph_from_networkx(nx.read_graphml(path))
     if fmt == "gexf":
+        nx = optional_import(
+            "networkx",
+            extra="graph-standard",
+            feature="GraphML/GEXF graph I/O",
+            package_name="networkx",
+        )
         return _graph_from_networkx(nx.read_gexf(path))
     raise AssertionError("unreachable graph format branch")
 

@@ -3,10 +3,10 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-import matplotlib
 import numpy as np
 import pytest
 
+matplotlib = pytest.importorskip("matplotlib")
 matplotlib.use("Agg", force=True)
 
 ROOT = Path(__file__).resolve().parents[1]

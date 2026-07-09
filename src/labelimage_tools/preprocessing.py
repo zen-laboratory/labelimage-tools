@@ -459,6 +459,7 @@ def load_image_pipeline(
     path: str | PathLike,
     seed=None,
     background=0,
+    backend: str = "auto",
     connectivity: int = 1,
     crop_to_foreground: bool = True,
     remove_small_bits: bool = True,
@@ -482,6 +483,8 @@ def load_image_pipeline(
         Random seed used when ``shuffle=True``.
     background : int, optional
         Background label. Default is ``0``.
+    backend : {"auto", "tifffile", "pillow"}, optional
+        Image I/O backend passed to :func:`labelimage_tools.load_img`.
     connectivity : int, optional
         Connectivity used for disconnected-fragment cleanup.
     crop_to_foreground : bool, optional
@@ -502,7 +505,7 @@ def load_image_pipeline(
     np.ndarray
         Processed label image.
     """
-    im = load_img(path)
+    im = load_img(path, backend=backend)
     if crop_to_foreground:
         im, _ = crop_to_foreground_bbox(im, background=background, padding=5)
     if remove_small_bits:

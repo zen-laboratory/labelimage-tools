@@ -3,12 +3,9 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
-import matplotlib.pyplot as plt
 import numpy as np
-from matplotlib.axes import Axes
-from matplotlib.collections import LineCollection
-from skimage.segmentation import find_boundaries
 
+from ._optional import optional_import
 from .adjacency import adjacency_from_labels, get_centroids
 from .coloring import show_map_with_colors
 from .contours import ordered_contours_from_labels
@@ -16,8 +13,38 @@ from .junctions import Junction, junctions_from_labels
 from .typing import Cont, Neig
 
 
-def _fig_ax(ax: Axes | None):
+def _matplotlib_pyplot():
+    return optional_import(
+        "matplotlib.pyplot",
+        extra="plot",
+        feature="Plotting",
+        package_name="matplotlib",
+    )
+
+
+def _line_collection():
+    collections = optional_import(
+        "matplotlib.collections",
+        extra="plot",
+        feature="Plotting",
+        package_name="matplotlib",
+    )
+    return collections.LineCollection
+
+
+def _find_boundaries():
+    segmentation = optional_import(
+        "skimage.segmentation",
+        extra="plot",
+        feature="Boundary plotting",
+        package_name="scikit-image",
+    )
+    return segmentation.find_boundaries
+
+
+def _fig_ax(ax=None):
     if ax is None:
+        plt = _matplotlib_pyplot()
         return plt.subplots()
     return ax.figure, ax
 
@@ -26,7 +53,7 @@ def draw_graph(
     im,
     neighbors: Neig,
     contacts: Cont | None = None,
-    ax: Axes | None = None,
+    ax=None,
     show_labels: bool = True,
     show_centroids: bool = False,
     centroids: Mapping[int, np.ndarray] | None = None,
@@ -35,7 +62,7 @@ def draw_graph(
     line_args=None,
     text_args=None,
     dot_args=None,
-) -> tuple[LineCollection, Axes]:
+):
     """
     Draw an adjacency graph between label centroids.
 
@@ -94,9 +121,11 @@ def draw_graph(
     _, ax = _fig_ax(ax)
     kind, factor = lw_scaling
     if kind == "sqrt":
-        scaler = lambda value: np.sqrt(value) * factor
+        def scaler(value): # type: ignore (mypy doesn't properly resolve the if branches)
+            return np.sqrt(value) * factor
     elif kind == "linear":
-        scaler = lambda value: value * factor
+        def scaler(value):
+            return value * factor
     else:
         raise ValueError(f"unknown line width scaling kind: {kind}")
 
@@ -113,7 +142,7 @@ def draw_graph(
             ax.text(cx, cy, str(label), **text_args)
         if show_centroids:
             ax.plot(cx, cy, **dot_args)
-    collection = LineCollection(lines, linewidths=widths, **line_args)
+    collection = _line_collection()(lines, linewidths=widths, **line_args)
     ax.add_collection(collection)
     if autoadjust_ax:
         ax.autoscale()
@@ -122,7 +151,7 @@ def draw_graph(
     return collection, ax
 
 
-def label_map(im, ax: Axes | None = None, background=0, **text_args) -> Axes:
+def label_map(im, ax=None, background=0, **text_args):
     """
     Label each region in a labeled map at its centroid.
 
@@ -152,7 +181,7 @@ def label_map(im, ax: Axes | None = None, background=0, **text_args) -> Axes:
 def plot_label_image(
     labels,
     *,
-    ax: Axes | None = None,
+    ax=None,
     background=0,
     use_graph_coloring: bool = True,
     K: int = 8,
@@ -232,7 +261,7 @@ def plot_label_image(
 def plot_label_boundaries(
     labels,
     *,
-    ax: Axes | None = None,
+    ax=None,
     background=0,
     color="white",
     linewidth: float = 0.5,
@@ -263,7 +292,7 @@ def plot_label_boundaries(
         Matplotlib figure and axis.
     """
     fig, ax = _fig_ax(ax)
-    boundaries = find_boundaries(np.asarray(labels), mode="thick")
+    boundaries = _find_boundaries()(np.asarray(labels), mode="thick")
     ys, xs = np.nonzero(boundaries)
     ax.plot(xs, ys, ".", color=color, markersize=linewidth)
     if title is not None:
@@ -275,7 +304,7 @@ def plot_label_boundaries(
 def plot_contours(
     labels,
     *,
-    ax: Axes | None = None,
+    ax=None,
     background=0,
     color="white",
     linewidth: float = 0.8,
@@ -319,7 +348,7 @@ def plot_junctions(
     junctions: list[Junction] | None = None,
     *,
     junction_mask=None,
-    ax: Axes | None = None,
+    ax=None,
     background=0,
     show_junction_ids: bool = False,
     title: str | None = None,
@@ -378,7 +407,7 @@ def plot_junctions(
     return fig, ax
 
 
-def plot_adjacency_graph(labels, *, ax: Axes | None = None, background=0, eight: bool = True):
+def plot_adjacency_graph(labels, *, ax=None, background=0, eight: bool = True):
     """
     Plot a graph-colored label image with its adjacency graph overlaid.
 

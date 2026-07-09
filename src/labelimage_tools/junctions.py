@@ -1,19 +1,72 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from importlib import import_module
 
 import numpy as np
 from scipy import ndimage as ndi
 from scipy.spatial import KDTree
-from skimage.measure import label as cc_label
 
+from ._optional import optional_import
 from .validation import validate_label_image
 
-try:  # pragma: no cover - fallback exists for environments without numba
-    from numba import njit, prange
-except Exception:  # pragma: no cover
-    njit = None
-    prange = range
+
+def _component_label():
+    measure = optional_import(
+        "skimage.measure",
+        extra="plot",
+        feature="Junction clustering",
+        package_name="scikit-image",
+    )
+    return measure.label
+
+
+_numba_junction_mask_core = None
+_numba_checked = False
+
+
+def _get_numba_junction_mask_core():  # pragma: no cover - exercised via public wrapper
+    global _numba_checked, _numba_junction_mask_core
+    if _numba_checked:
+        return _numba_junction_mask_core
+    _numba_checked = True
+    try:
+        numba = import_module("numba")
+    except ImportError:
+        return None
+    njit = numba.njit
+    prange = numba.prange
+
+    @njit(cache=True, parallel=True)
+    def _kernel(padded, h, w, min_labels):
+        mask = np.zeros((h, w), np.uint8)
+        for y in prange(h):
+            yy = y + 1
+            for x in range(w):
+                vals = np.empty(9, padded.dtype)
+                nunique = 0
+                done = False
+                for dy in range(3):
+                    if done:
+                        break
+                    for dx in range(3):
+                        value = padded[yy - 1 + dy, x + dx]
+                        seen = False
+                        for k in range(nunique):
+                            if vals[k] == value:
+                                seen = True
+                                break
+                        if not seen:
+                            vals[nunique] = value
+                            nunique += 1
+                            if nunique >= min_labels:
+                                mask[y, x] = 1
+                                done = True
+                                break
+        return mask
+
+    _numba_junction_mask_core = _kernel
+    return _numba_junction_mask_core
 
 
 @dataclass(frozen=True)
@@ -52,40 +105,6 @@ def _python_junction_mask_core(padded: np.ndarray, h: int, w: int, min_labels: i
     return mask
 
 
-if njit is not None:
-
-    @njit(cache=True, parallel=True)
-    def _numba_junction_mask_core(padded, h, w, min_labels):  # pragma: no cover
-        mask = np.zeros((h, w), np.uint8)
-        for y in prange(h):
-            yy = y + 1
-            for x in range(w):
-                vals = np.empty(9, padded.dtype)
-                nunique = 0
-                done = False
-                for dy in range(3):
-                    if done:
-                        break
-                    for dx in range(3):
-                        value = padded[yy - 1 + dy, x + dx]
-                        seen = False
-                        for k in range(nunique):
-                            if vals[k] == value:
-                                seen = True
-                                break
-                        if not seen:
-                            vals[nunique] = value
-                            nunique += 1
-                            if nunique >= min_labels:
-                                mask[y, x] = 1
-                                done = True
-                                break
-        return mask
-
-else:
-    _numba_junction_mask_core = None # type: ignore
-
-
 def junction_pixels_with_labels(
     labels,
     *,
@@ -122,8 +141,9 @@ def junction_pixels_with_labels(
     labels = validate_label_image(labels, background=0 if background is None else background)
     h, w = labels.shape
     padded = np.pad(labels, 1, mode="edge")
-    if background is None and _numba_junction_mask_core is not None and min_labels <= 9:
-        mask = _numba_junction_mask_core(padded, h, w, int(min_labels)).astype(bool)
+    numba_kernel = _get_numba_junction_mask_core()
+    if background is None and numba_kernel is not None and min_labels <= 9:
+        mask = numba_kernel(padded, h, w, int(min_labels)).astype(bool)
     else:
         mask = np.zeros((h, w), dtype=bool)
         for y in range(h):
@@ -190,7 +210,7 @@ def cluster_junctions_with_labels(
 
     # Component labels are dense positive integers, so scipy's object-finding
     # helper gives one local bounding box per component in component-id order.
-    component_labels = cc_label(mask, connectivity=connectivity)
+    component_labels = _component_label()(mask, connectivity=connectivity)
     objects = ndi.find_objects(component_labels)
 
     h, w = mask.shape
@@ -267,7 +287,12 @@ def merge_close_junctions(
     junctions = list(junctions)
     if epsilon <= 0 or len(junctions) <= 1:
         return [
-            Junction(start_id + i, np.asarray(j.yx, dtype=float), j.pixel_coords, frozenset(j.labels))
+            Junction(
+                start_id + i,
+                np.asarray(j.yx, dtype=float),
+                j.pixel_coords,
+                frozenset(j.labels),
+            )
             for i, j in enumerate(junctions)
         ]
     positions = np.asarray([j.yx for j in junctions], dtype=float)

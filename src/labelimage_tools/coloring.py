@@ -4,16 +4,37 @@ from collections import defaultdict
 from collections.abc import Mapping
 from typing import Any
 
-import matplotlib.pyplot as plt
-import networkx as nx
 import numpy as np
-from matplotlib.axes import Axes
-from matplotlib.colors import Colormap, Normalize
-from matplotlib.image import AxesImage
 
+from ._optional import optional_import
 from .adjacency import adjacency_from_labels
 from .typing import Adj, Node
 from .validation import unique_labels
+
+
+def _networkx_for_coloring():
+    return optional_import(
+        "networkx",
+        extra="plot",
+        feature="Graph coloring",
+        package_name="networkx",
+    )
+
+
+def _matplotlib_for_coloring():
+    plt = optional_import(
+        "matplotlib.pyplot",
+        extra="plot",
+        feature="Graph-colored plotting",
+        package_name="matplotlib",
+    )
+    colors = optional_import(
+        "matplotlib.colors",
+        extra="plot",
+        feature="Graph-colored plotting",
+        package_name="matplotlib",
+    )
+    return plt, colors
 
 
 def dsatur_color(adj: Adj, seed: int | None = None) -> dict[Node, int]:
@@ -39,6 +60,7 @@ def dsatur_color(adj: Adj, seed: int | None = None) -> dict[Node, int]:
     This is extracted from ``segmentation_processing.coloring.dsatur_color`` and
     uses NetworkX's ``saturation_largest_first`` greedy-coloring strategy.
     """
+    nx = _networkx_for_coloring()
     graph = nx.Graph()
     for node, neighbors in adj.items():
         graph.add_node(node)
@@ -296,8 +318,8 @@ def color_planar_with_variety(
 
 def show_map_with_colors(
     map_array: np.ndarray,
-    ax: Axes | None = None,
-    cmap: str | Colormap = "tab20",
+    ax=None,
+    cmap="tab20",
     cyclic_cmap: bool = False,
     adj: Adj | None = None,
     lut: np.ndarray | None = None,
@@ -308,7 +330,7 @@ def show_map_with_colors(
     holes_separate: bool = True,
     hole_color: Any = "0.3",
     **imshow_kwargs,
-) -> tuple[AxesImage, np.ndarray, Axes]:
+):
     """
     Display a labeled map with conflict-free graph-based coloring.
 
@@ -355,6 +377,7 @@ def show_map_with_colors(
     ax : matplotlib.axes.Axes
         Axis containing the image.
     """
+    plt, colors = _matplotlib_for_coloring()
     if ax is None:
         _, ax = plt.subplots()
     if lut is None:
@@ -380,6 +403,6 @@ def show_map_with_colors(
         cmap.set_over(hole_color)
         mapped[np.asarray(map_array) > 9999] = K + 1
     vmax = max(1, K_effective if cyclic_cmap else K_effective - 1)
-    norm = Normalize(vmin=0, vmax=vmax)
+    norm = colors.Normalize(vmin=0, vmax=vmax)
     image = ax.imshow(mapped, cmap=cmap, norm=norm, **imshow_kwargs)
     return image, lut, ax

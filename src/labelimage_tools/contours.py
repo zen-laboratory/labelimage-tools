@@ -1,10 +1,19 @@
 from __future__ import annotations
 
 import numpy as np
-from skimage import measure
 
 from ._bbox import label_slices
+from ._optional import optional_import
 from .validation import validate_label_image
+
+
+def _measure():
+    return optional_import(
+        "skimage.measure",
+        extra="plot",
+        feature="Contour extraction",
+        package_name="scikit-image",
+    )
 
 
 def ordered_contour_from_mask(mask) -> np.ndarray:
@@ -30,7 +39,7 @@ def ordered_contour_from_mask(mask) -> np.ndarray:
     connected label mask.
     """
     mask = np.asarray(mask, dtype=bool)
-    contours = measure.find_contours(mask.astype(float), 0.5)
+    contours = _measure().find_contours(mask.astype(float), 0.5)
     if not contours:
         return np.empty((0, 2), dtype=float)
     return max(contours, key=len).astype(float)

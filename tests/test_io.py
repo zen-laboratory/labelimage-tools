@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import numpy as np
+import pytest
 
 import labelimage_tools as lit
+from labelimage_tools._optional import optional_import
 
 
 def test_load_label_image_preserves_integer_labels(sample_path):
@@ -11,6 +13,37 @@ def test_load_label_image_preserves_integer_labels(sample_path):
     assert np.issubdtype(labels.dtype, np.integer)
     assert labels.max() > 0
     assert np.array_equal(labels, lit.load_img(sample_path))
+
+
+def test_tiff_backend_roundtrip(tmp_path):
+    pytest.importorskip("tifffile")
+    labels = np.array([[0, 5], [10, 10]], dtype=np.uint16)
+    path = tmp_path / "labels.tif"
+
+    lit.save_label_image(path, labels, backend="tifffile")
+
+    assert np.array_equal(lit.load_label_image(path, backend="tifffile"), labels)
+    assert np.array_equal(lit.load_label_image(path, backend="auto"), labels)
+
+
+def test_pillow_backend_roundtrip(tmp_path):
+    pytest.importorskip("PIL.Image")
+    labels = np.array([[0, 5], [10, 10]], dtype=np.uint8)
+    path = tmp_path / "labels.png"
+
+    lit.save_label_image(path, labels, backend="pillow")
+
+    assert np.array_equal(lit.load_label_image(path, backend="pillow"), labels)
+    assert np.array_equal(lit.load_label_image(path, backend="auto"), labels)
+
+
+def test_optional_import_error_message():
+    with pytest.raises(ImportError, match=r"labelimage-tools\[plot\]"):
+        optional_import(
+            "definitely_missing_module_xyz",
+            extra="plot",
+            feature="Test feature",
+        )
 
 
 def _assert_neighbors_equal(left, right):
@@ -91,3 +124,22 @@ def test_save_label_graph_from_labels_preserves_construction_metadata(tmp_path):
     assert loaded.pixel_counts == lit.label_pixel_counts(labels)
     assert loaded.metadata["eight"] is False
     assert loaded.metadata["source_image"] == "labels.tif"
+
+
+def test_graphml_requires_networkx_only_for_standard_graph_formats(tmp_path, monkeypatch):
+    labels = np.array([[1, 1, 2], [1, 3, 2]], dtype=np.int64)
+    neighbors, contacts, _, _ = lit.graph_from_labels(labels)
+
+    import labelimage_tools._optional as optional
+
+    real_import_module = optional.import_module
+
+    def fake_import_module(module_name):
+        if module_name == "networkx":
+            raise ImportError("networkx hidden for test")
+        return real_import_module(module_name)
+
+    monkeypatch.setattr(optional, "import_module", fake_import_module)
+    lit.save_label_graph(tmp_path / "graph.json", neighbors, contacts=contacts)
+    with pytest.raises(ImportError, match=r"labelimage-tools\[graph-standard\]"):
+        lit.save_label_graph(tmp_path / "graph.graphml", neighbors, contacts=contacts)

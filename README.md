@@ -16,6 +16,45 @@ matplotlib plotting helpers.
 
 ## Installation
 
+### Light install
+
+```bash
+pip install labelimage-tools
+```
+
+The light install supports array-based preprocessing, adjacency/contact graph
+calculation, and native NPZ/JSON graph I/O.
+
+### TIFF image I/O
+
+For label-image I/O, installing the `tiff` extra is recommended because most
+scientific label images are TIFF files:
+
+```bash
+pip install "labelimage-tools[tiff]"
+```
+
+This installs `tifffile`, the recommended backend for scientific TIFF label
+images.
+
+### Other optional features
+
+```bash
+pip install "labelimage-tools[pillow]"          # PNG/JPEG/general image I/O
+pip install "labelimage-tools[plot]"            # plotting, contours, graph coloring
+pip install "labelimage-tools[graph-standard]"  # GraphML/GEXF graph I/O
+pip install "labelimage-tools[all]"             # everything
+```
+
+| Feature | Install |
+|---|---|
+| Core array processing, adjacency, NPZ/JSON graph I/O | `labelimage-tools` |
+| TIFF image I/O | `labelimage-tools[tiff]` |
+| PNG/JPEG/general image I/O | `labelimage-tools[pillow]` |
+| Plotting, contours, graph coloring | `labelimage-tools[plot]` |
+| GraphML/GEXF graph I/O | `labelimage-tools[graph-standard]` |
+| Everything | `labelimage-tools[all]` |
+
 From this checkout:
 
 ```bash

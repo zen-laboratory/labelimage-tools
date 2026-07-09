@@ -1,12 +1,11 @@
-from pathlib import Path
-from collections import namedtuple
 import json
+from collections import namedtuple
+from pathlib import Path
 
 import numpy as np
-import networkx as nx
 
+from ._optional import optional_import
 from .typing import Cont, Neig
-
 
 LabelGraphData = namedtuple(
     "LabelGraphData",
@@ -71,9 +70,9 @@ def _graph_arrays(
             edge = tuple(sorted((label, int(nbr))))
             if edge[0] == edge[1]:
                 continue
-            edge_set.add(edge)
+            edge_set.add(edge) # type: ignore (edge is 2-tuple of int, should be fine)
             if contacts is not None and weight is not None:
-                edge_contacts.setdefault(edge, float(weight))
+                edge_contacts.setdefault(edge, float(weight)) # type: ignore (edge is 2-tuple of int, should be fine)
 
     edges = np.asarray(sorted(edge_set), dtype=np.int64).reshape(-1, 2)
     contact_values = (
@@ -163,8 +162,8 @@ def _json_dict_from_graph_data(neighbors, contacts, centroids, pixel_counts, met
         item = {"source": int(edge[0]), "target": int(edge[1])}
         if contact_values is not None:
             contact = float(contact_values[idx])
-            item["contact"] = contact
-            item["weight"] = contact
+            item["contact"] = contact # type: ignore (contact is types ad float for flexibility, should be fine)
+            item["weight"] = contact # type: ignore (contact is types ad float for flexibility, should be fine)
         edge_items.append(item)
     return {"nodes": node_items, "edges": edge_items, "metadata": dict(metadata)}
 
@@ -210,6 +209,12 @@ def _graph_data_from_json_dict(data):
 
 
 def _graph_to_networkx(neighbors, contacts=None, centroids=None, pixel_counts=None, metadata=None):
+    nx = optional_import(
+        "networkx",
+        extra="graph-standard",
+        feature="GraphML/GEXF graph I/O",
+        package_name="networkx",
+    )
     graph = nx.Graph()
     nodes, edges, contact_values, _, _ = _graph_arrays(
         neighbors,
@@ -291,4 +296,3 @@ def _graph_from_networkx(graph):
         pixel_counts=pixel_counts,
     )
     return LabelGraphData(neighbors, contact_map, centroid_map, pixel_count_map, metadata)
-

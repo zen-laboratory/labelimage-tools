@@ -25,8 +25,10 @@ from .io import (
     load_img,
     load_label_graph,
     load_label_image,
+    save_img,
     save_label_graph,
     save_label_graph_from_labels,
+    save_label_image,
 )
 from .junctions import (
     Junction,
@@ -103,6 +105,8 @@ __all__ = [
     "remove_non_self_connected_bits",
     "save_label_graph",
     "save_label_graph_from_labels",
+    "save_img",
+    "save_label_image",
     "show_map_with_colors",
     "shuffle_labels",
     "skeletonize_dilate",

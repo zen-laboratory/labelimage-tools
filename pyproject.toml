@@ -12,16 +12,45 @@ license = {text = "BSD-3-Clause"}
 dependencies = [
   "numpy>=1.24",
   "scipy>=1.10",
-  "scikit-image>=0.21",
-  "matplotlib>=3.7",
-  "pillow>=9",
-  "networkx>=3.0",
-  "numba>=0.57",
 ]
 
 [project.optional-dependencies]
-test = ["pytest>=7"]
-dev = ["pytest>=7", "ruff>=0.5"]
+tiff = ["tifffile>=2022.8.12"]
+pillow = ["pillow>=9"]
+plot = [
+  "matplotlib>=3.7",
+  "scikit-image>=0.21",
+  "networkx>=3.0",
+]
+graph-standard = ["networkx>=3.0"]
+junctions-accelerated = ["numba>=0.57"]
+all = [
+  "tifffile>=2022.8.12",
+  "pillow>=9",
+  "matplotlib>=3.7",
+  "scikit-image>=0.21",
+  "networkx>=3.0",
+  "numba>=0.57",
+]
+test = [
+  "pytest>=7",
+  "tifffile>=2022.8.12",
+  "pillow>=9",
+  "matplotlib>=3.7",
+  "scikit-image>=0.21",
+  "networkx>=3.0",
+  "numba>=0.57",
+]
+dev = [
+  "pytest>=7",
+  "ruff>=0.5",
+  "tifffile>=2022.8.12",
+  "pillow>=9",
+  "matplotlib>=3.7",
+  "scikit-image>=0.21",
+  "networkx>=3.0",
+  "numba>=0.57",
+]
 
 [tool.setuptools.packages.find]
 where = ["src"]
