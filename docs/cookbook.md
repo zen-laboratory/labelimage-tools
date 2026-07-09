@@ -36,10 +36,33 @@ fig, ax = lit.plot_label_image(
 
 ![Graph-colored labels](../examples/plots/graph_colored_managua.png)
 
-The same script also shows boundary and adjacency overlays:
+The same script also shows label boundaries:
 
 ![Label boundaries](../examples/plots/label_boundaries.png)
-![Adjacency graph](../examples/plots/adjacency_graph.png)
+
+## Adjacency graph I/O
+
+Graph I/O preserves original label IDs as graph node IDs. Contact values are neighboring pixel-pair counts, useful as graph weights but not exact geometric lengths.
+
+```bash
+python examples/04_graph_io.py
+```
+
+Core snippet:
+
+```python
+neighbors, contacts, centroids, pixel_counts = lit.graph_from_labels(labels)
+lit.save_label_graph(
+    "examples/plots/label_graph.npz",
+    neighbors,
+    contacts=contacts,
+    centroids=centroids,
+    pixel_counts=pixel_counts,
+)
+loaded = lit.load_label_graph("examples/plots/label_graph.npz")
+```
+
+![Adjacency graph loaded from graph file](../examples/plots/adjacency_graph_from_loaded_graph.png)
 
 ## Preprocessing operations
 

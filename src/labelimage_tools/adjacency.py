@@ -45,7 +45,11 @@ def adjacency_with_unique_from_labels(
     empty = np.empty((0, 2), dtype=np.int64)
 
     def acc(a: np.ndarray, b: np.ndarray) -> None:
-        mask = a != b if allow_background_contacts else (a != b) & (a != background) & (b != background)
+        mask = (
+            a != b
+            if allow_background_contacts
+            else (a != b) & (a != background) & (b != background)
+        )
         if np.any(mask):
             aa = a[mask].ravel()
             bb = b[mask].ravel()
@@ -180,7 +184,11 @@ def adjacency_with_contact_from_labels(
     totals: dict[tuple[int, int], float] = {}
 
     def acc(a: np.ndarray, b: np.ndarray, weight: float) -> None:
-        mask = a != b if allow_background_contacts else (a != b) & (a != background) & (b != background)
+        mask = (
+            a != b
+            if allow_background_contacts
+            else (a != b) & (a != background) & (b != background)
+        )
         if not np.any(mask):
             return
         aa = a[mask].ravel()
@@ -209,6 +217,76 @@ def adjacency_with_contact_from_labels(
         {k: np.asarray(v, dtype=np.int64) for k, v in adj.items()},
         {k: np.asarray(cont[k]) for k in cont},
     )
+
+
+def label_pixel_counts(
+    labels,
+    *,
+    background=0,
+    include_background: bool = False,
+) -> dict[int, int]:
+    """
+    Count pixels for each label while preserving original label IDs.
+
+    Parameters
+    ----------
+    labels : np.ndarray
+        2-D integer label image.
+    background : int, optional
+        Background label. Default is ``0``.
+    include_background : bool, optional
+        If ``False`` (default), omit the background label from the result.
+
+    Returns
+    -------
+    dict[int, int]
+        Mapping ``label -> number of pixels``.
+    """
+    arr = validate_label_image(labels, background=background)
+    values, counts = np.unique(arr, return_counts=True)
+    out: dict[int, int] = {}
+    for value, count in zip(values, counts, strict=True):
+        label = int(value)
+        if label == background and not include_background:
+            continue
+        out[label] = int(count)
+    return out
+
+
+def graph_from_labels(
+    labels,
+    *,
+    background=0,
+    eight: bool = True,
+    diag_weight: float | None = None,
+    allow_background_contacts: bool = False,
+    include_centroids: bool = True,
+    include_pixel_counts: bool = True,
+) -> tuple[Neig, Cont, dict[int, np.ndarray] | None, dict[int, int] | None]:
+    """
+    Build adjacency, contact, centroid, and pixel-count graph data from labels.
+
+    Contact values are neighboring pixel-pair counts. They are useful graph
+    weights, but they are not exact geometric contact lengths.
+    """
+    neighbors, contacts = adjacency_with_contact_from_labels(
+        labels,
+        background=background,
+        eight=eight,
+        diag_weight=diag_weight,
+        allow_background_contacts=allow_background_contacts,
+    )
+    centroids = get_centroids(labels, background=background) if include_centroids else None
+    pixel_counts = (
+        label_pixel_counts(
+            labels,
+            background=background,
+            include_background=allow_background_contacts,
+        )
+        if include_pixel_counts
+        else None
+    )
+    return neighbors, contacts, centroids, pixel_counts
 
 
 def label_is_border(neighbors: Neig, label: Node, background: Node = 0) -> bool:
@@ -250,7 +328,11 @@ def border_labels(neighbors: Neig, background: Node = 0) -> np.ndarray:
         Integer array of labels for which :func:`label_is_border` is true.
     """
     return np.asarray(
-        [int(label) for label in neighbors if label != background and label_is_border(neighbors, label, background)],
+        [
+            int(label)
+            for label in neighbors
+            if label != background and label_is_border(neighbors, label, background)
+        ],
         dtype=np.int64,
     )
 

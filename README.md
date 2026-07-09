@@ -47,19 +47,28 @@ labels = lit.load_image_pipeline("segmentation.tif")
 
 ## Adjacency and contact graph
 
-Adjacency is computed by vectorized neighbor scanning. Contact values are counts
-of neighboring pixel pairs, useful as weights but not exact geometric lengths.
+Adjacency is computed by vectorized neighbor scanning. Contact values are
+neighboring pixel-pair counts, useful as weights but not exact geometric
+lengths. Original label IDs are preserved as graph node IDs.
 
 ```python
-neighbors, pairs = lit.adjacency_with_unique_from_labels(
-    labels,
-    background=0,
-    eight=True,
-    allow_background_contacts=True,
+neighbors, contacts, centroids, pixel_counts = lit.graph_from_labels(labels)
+
+lit.save_label_graph(
+    "label_graph.npz",
+    neighbors,
+    contacts=contacts,
+    centroids=centroids,
+    pixel_counts=pixel_counts,
+    source_image="segmentation.tif",
 )
 
-neighbors, contacts = lit.adjacency_with_contact_from_labels(labels)
-centroids = lit.get_centroids(labels)
+neighbors, contacts, centroids, pixel_counts, metadata = lit.load_label_graph(
+    "label_graph.npz"
+)
+
+# JSON is a readable alternative for smaller graphs or inspection.
+lit.save_label_graph("label_graph.json", neighbors, contacts=contacts)
 ```
 
 ## Junction detection
@@ -112,6 +121,7 @@ the top of each script, run it, or copy sections into a notebook.
 python examples/01_graph_coloring.py
 python examples/02_preprocessing_gallery.py
 python examples/03_junctions_and_contours.py
+python examples/04_graph_io.py
 ```
 
 The cookbook in [`docs/cookbook.md`](docs/cookbook.md) walks through the same

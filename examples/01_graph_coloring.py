@@ -1,4 +1,4 @@
-"""Graph-coloring and adjacency plotting example.
+"""Graph-colored label plotting example.
 
 Run this file from the repository root with:
 
@@ -64,35 +64,13 @@ def main() -> list[Path]:
     lit.plot_label_boundaries(labels, ax=ax, color="black", linewidth=0.7)
     boundaries = save_figure(fig, "label_boundaries.png")
 
-    neighbors, contacts = lit.adjacency_with_contact_from_labels(labels, background=BACKGROUND)
-    fig, ax = lit.plot_label_image(
-        labels,
-        background=BACKGROUND,
-        use_graph_coloring=True,
-        K=K,
-        seed=SEED,
-        cmap="managua",
-        cyclic_cmap=True,
-        title="Adjacency graph over labels",
-    )
-    lit.draw_graph(
-        labels,
-        neighbors,
-        contacts=contacts,
-        ax=ax,
-        show_labels=False,
-        lw_scaling=("sqrt", 0.15),
-        line_args={"color": "white", "alpha": 0.75},
-    )
-    adjacency_graph = save_figure(fig, "adjacency_graph.png")
-
     print(f"Loaded {SAMPLE_PATH}")
     print(f"Labels: {len(lit.unique_labels(labels, background=BACKGROUND))}")
     print(f"Adjacency edges: {len(lit.adjacency_pairs_from_labels(labels, background=BACKGROUND))}")
     print("Wrote:")
-    for path in [graph_colored, boundaries, adjacency_graph]:
+    for path in [graph_colored, boundaries]:
         print(f"  {path}")
-    return [graph_colored, boundaries, adjacency_graph]
+    return [graph_colored, boundaries]
 
 
 if __name__ == "__main__":

@@ -8,7 +8,9 @@ from .adjacency import (
     border_labels,
     centroids_from_labels,
     get_centroids,
+    graph_from_labels,
     label_is_border,
+    label_pixel_counts,
 )
 from .coloring import (
     apply_color_lut_int,
@@ -19,7 +21,13 @@ from .coloring import (
     show_map_with_colors,
 )
 from .contours import ordered_contour_from_mask, ordered_contours_from_labels
-from .io import load_img, load_label_image
+from .io import (
+    load_img,
+    load_label_graph,
+    load_label_image,
+    save_label_graph,
+    save_label_graph_from_labels,
+)
 from .junctions import (
     Junction,
     cluster_junctions_with_labels,
@@ -72,12 +80,15 @@ __all__ = [
     "fill_internal_gaps_edt",
     "find_non_self_connected_labels",
     "get_centroids",
+    "graph_from_labels",
     "junction_pixels_with_labels",
     "junctions_from_labels",
     "label_is_border",
+    "label_pixel_counts",
     "label_map",
     "load_image_pipeline",
     "load_img",
+    "load_label_graph",
     "load_label_image",
     "merge_close_junctions",
     "ordered_contour_from_mask",
@@ -90,6 +101,8 @@ __all__ = [
     "rebalance_K_colors",
     "refine_to_K_colors",
     "remove_non_self_connected_bits",
+    "save_label_graph",
+    "save_label_graph_from_labels",
     "show_map_with_colors",
     "shuffle_labels",
     "skeletonize_dilate",
