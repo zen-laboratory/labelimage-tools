@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "labelimage-tools"
 version = "0.1.0"
 description = "Utilities for 2-D labeled tissue segmentation images"
-readme = "README.md"
+readme = "README-pypi.md"
 requires-python = ">=3.10"
 license = "BSD-3-Clause"
 license-files = ["LICENSE"]
