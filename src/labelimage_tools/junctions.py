@@ -1,7 +1,7 @@
 from __future__ import annotations
 
+import warnings
 from dataclasses import dataclass
-from importlib import import_module
 
 import numpy as np
 from scipy import ndimage as ndi
@@ -23,6 +23,7 @@ def _component_label():
 
 _numba_junction_mask_core = None
 _numba_checked = False
+JUNCTION_NUMBA_WARNING_MIN_PIXELS = 1_000_000
 
 
 def _get_numba_junction_mask_core():  # pragma: no cover - exercised via public wrapper
@@ -31,7 +32,12 @@ def _get_numba_junction_mask_core():  # pragma: no cover - exercised via public 
         return _numba_junction_mask_core
     _numba_checked = True
     try:
-        numba = import_module("numba")
+        numba = optional_import(
+            "numba",
+            extra="junctions-accelerated",
+            feature="Accelerated junction detection",
+            package_name="numba",
+        )
     except ImportError:
         return None
     njit = numba.njit
@@ -110,6 +116,7 @@ def junction_pixels_with_labels(
     *,
     background=None,
     min_labels: int = 3,
+    warn_without_numba: bool = True,
 ) -> tuple[np.ndarray, dict[int, np.ndarray]]:
     """
     Find junction pixels and record labels visible at each such pixel.
@@ -129,6 +136,11 @@ def junction_pixels_with_labels(
     min_labels : int, optional
         Minimum number of distinct labels required to mark a pixel as a junction.
         Default is ``3``.
+    warn_without_numba : bool, optional
+        If ``True`` (default), emit a warning when the numba-accelerated path is
+        unavailable and the image has at least
+        ``JUNCTION_NUMBA_WARNING_MIN_PIXELS`` pixels. Set to ``False`` to
+        suppress this warning.
 
     Returns
     -------
@@ -145,6 +157,21 @@ def junction_pixels_with_labels(
     if background is None and numba_kernel is not None and min_labels <= 9:
         mask = numba_kernel(padded, h, w, int(min_labels)).astype(bool)
     else:
+        if (
+            warn_without_numba
+            and numba_kernel is None
+            and labels.size >= JUNCTION_NUMBA_WARNING_MIN_PIXELS
+        ):
+            warnings.warn(
+                "junction_pixels_with_labels is using the pure-Python fallback "
+                f"on a large image ({labels.size:,} pixels), which may take a while. "
+                "Consider installing numba with "
+                "`pip install labelimage-tools[junctions-accelerated]` or "
+                "`pip install labelimage-tools[recommended]`, or "
+                "increase JUNCTION_NUMBA_WARNING_MIN_PIXELS to suppress this warning.",
+                RuntimeWarning,
+                stacklevel=2,
+            )
         mask = np.zeros((h, w), dtype=bool)
         for y in range(h):
             yy = y + 1

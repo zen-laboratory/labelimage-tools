@@ -1,8 +1,13 @@
 from __future__ import annotations
 
+import warnings
+
 import numpy as np
+import pytest
 
 import labelimage_tools as lit
+import labelimage_tools._optional as optional
+import labelimage_tools.junctions as junctions_module
 
 
 def four_label_meeting():
@@ -28,6 +33,91 @@ def test_junction_pixels_and_clusters():
     assert junctions[0].labels == frozenset({1, 2, 3, 4})
     assert np.isfinite(junctions[0].yx).all()
     assert np.issubdtype(junctions[0].pixel_coords.dtype, np.integer)
+
+
+def test_junction_pixels_falls_back_without_numba(monkeypatch):
+    labels = four_label_meeting()
+    real_import_module = optional.import_module
+
+    def fake_import_module(module_name):
+        if module_name == "numba":
+            raise ImportError("numba hidden for test")
+        return real_import_module(module_name)
+
+    monkeypatch.setattr(optional, "import_module", fake_import_module)
+    monkeypatch.setattr(junctions_module, "_numba_checked", False)
+    monkeypatch.setattr(junctions_module, "_numba_junction_mask_core", None)
+
+    mask, labels_at_pixel = lit.junction_pixels_with_labels(labels)
+
+    assert mask.any()
+    assert labels_at_pixel
+    assert junctions_module._numba_checked is True
+    assert junctions_module._numba_junction_mask_core is None
+
+
+def test_junction_pixels_warns_on_large_image_without_numba(monkeypatch):
+    labels = four_label_meeting()
+    real_import_module = optional.import_module
+
+    def fake_import_module(module_name):
+        if module_name == "numba":
+            raise ImportError("numba hidden for test")
+        return real_import_module(module_name)
+
+    monkeypatch.setattr(optional, "import_module", fake_import_module)
+    monkeypatch.setattr(junctions_module, "_numba_checked", False)
+    monkeypatch.setattr(junctions_module, "_numba_junction_mask_core", None)
+    monkeypatch.setattr(junctions_module, "JUNCTION_NUMBA_WARNING_MIN_PIXELS", 1)
+
+    with pytest.warns(RuntimeWarning, match="pure-Python fallback"):
+        lit.junction_pixels_with_labels(labels)
+
+
+def test_junction_pixels_warning_can_be_suppressed(monkeypatch):
+    labels = four_label_meeting()
+    real_import_module = optional.import_module
+
+    def fake_import_module(module_name):
+        if module_name == "numba":
+            raise ImportError("numba hidden for test")
+        return real_import_module(module_name)
+
+    monkeypatch.setattr(optional, "import_module", fake_import_module)
+    monkeypatch.setattr(junctions_module, "_numba_checked", False)
+    monkeypatch.setattr(junctions_module, "_numba_junction_mask_core", None)
+    monkeypatch.setattr(junctions_module, "JUNCTION_NUMBA_WARNING_MIN_PIXELS", 1)
+
+    with warnings.catch_warnings(record=True) as warnings_record:
+        warnings.simplefilter("always")
+        lit.junction_pixels_with_labels(labels, warn_without_numba=False)
+
+    assert not warnings_record
+
+
+def test_junction_pixels_numba_matches_python_fallback(monkeypatch):
+    pytest.importorskip("numba")
+    labels = four_label_meeting()
+
+    real_import_module = optional.import_module
+    monkeypatch.setattr(junctions_module, "_numba_checked", False)
+    monkeypatch.setattr(junctions_module, "_numba_junction_mask_core", None)
+    mask_numba, labels_numba = lit.junction_pixels_with_labels(labels)
+
+    def fake_import_module(module_name):
+        if module_name == "numba":
+            raise ImportError("numba hidden for test")
+        return real_import_module(module_name)
+
+    monkeypatch.setattr(optional, "import_module", fake_import_module)
+    monkeypatch.setattr(junctions_module, "_numba_checked", False)
+    monkeypatch.setattr(junctions_module, "_numba_junction_mask_core", None)
+    mask_python, labels_python = lit.junction_pixels_with_labels(labels)
+
+    assert np.array_equal(mask_numba, mask_python)
+    assert labels_numba.keys() == labels_python.keys()
+    for key in labels_numba:
+        assert np.array_equal(labels_numba[key], labels_python[key])
 
 
 def test_cluster_junctions_with_labels_single_component():

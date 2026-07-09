@@ -24,6 +24,10 @@ plot = [
 ]
 graph-standard = ["networkx>=3.0"]
 junctions-accelerated = ["numba>=0.57"]
+recommended = [
+  "tifffile>=2022.8.12",
+  "numba>=0.57",
+]
 all = [
   "tifffile>=2022.8.12",
   "pillow>=9",

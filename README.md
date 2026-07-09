@@ -37,12 +37,22 @@ pip install "labelimage-tools[tiff]"
 This installs `tifffile`, the recommended backend for scientific TIFF label
 images.
 
+### Recommended scientific-image install
+
+For most scientific label-image workflows, install TIFF support plus accelerated
+junction scanning:
+
+```bash
+pip install "labelimage-tools[recommended]"
+```
+
 ### Other optional features
 
 ```bash
 pip install "labelimage-tools[pillow]"          # PNG/JPEG/general image I/O
 pip install "labelimage-tools[plot]"            # plotting, contours, graph coloring
 pip install "labelimage-tools[graph-standard]"  # GraphML/GEXF graph I/O
+pip install "labelimage-tools[junctions-accelerated]"  # numba-accelerated junction scanning
 pip install "labelimage-tools[all]"             # everything
 ```
 
@@ -50,6 +60,7 @@ pip install "labelimage-tools[all]"             # everything
 |---|---|
 | Core array processing, adjacency, NPZ/JSON graph I/O | `labelimage-tools` |
 | TIFF image I/O | `labelimage-tools[tiff]` |
+| TIFF image I/O + accelerated junction scanning | `labelimage-tools[recommended]` |
 | PNG/JPEG/general image I/O | `labelimage-tools[pillow]` |
 | Plotting, contours, graph coloring | `labelimage-tools[plot]` |
 | GraphML/GEXF graph I/O | `labelimage-tools[graph-standard]` |
