@@ -518,3 +518,49 @@ def load_image_pipeline(
     if shuffle:
         im = shuffle_labels(im, seed=seed, background=background)
     return im
+
+
+def replace_labels(im, mapping: dict[int, int], background=0, default_missing: int | None= 0) -> np.ndarray:
+    """
+    Replace label values in a label image according to a mapping.
+
+    Parameters
+    ----------
+    im : np.ndarray
+        2-D integer label image.
+    mapping : dict[int, int]
+        Mapping from old label values to new label values. Background can be
+        included in the mapping if desired.
+    background : int, optional
+        Background label. Default is ``0``.
+    default_missing : int, optional
+        Default value for labels not in the mapping. If None, keep the original value.
+          Default is ``0``.
+
+    Returns
+    -------
+    np.ndarray
+        Label image with replaced labels.
+    """
+    labels = validate_label_image(im, background=background)
+
+    # Ensure the new dtype is compatible with int, and find the most suitable dtype for the output.
+    new_dtype = np.result_type(*mapping.values())
+    if not np.issubdtype(new_dtype, np.integer):
+        raise ValueError("Mapping values must be integers.")
+
+    out = np.full(labels.shape, background, dtype=new_dtype)
+    
+    # Check if background needs to be remapped as well
+    include_background = background in mapping
+
+    # Map labels
+    for old_label, slc in label_slices(labels, background=background, include_background=include_background).items():
+        if old_label in mapping:
+            new_label = mapping[old_label]
+            out[slc][labels[slc] == old_label] = new_label
+        else:
+            missing_sentinel = default_missing if default_missing is not None else old_label
+            out[slc][labels[slc] == old_label] = missing_sentinel # Use default value if not in mapping
+
+    return out
