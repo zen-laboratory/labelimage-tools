@@ -304,6 +304,7 @@ def plot_label_boundaries(
 def plot_contours(
     labels,
     *,
+    contours=None,
     ax=None,
     background=0,
     color="white",
@@ -334,7 +335,9 @@ def plot_contours(
         Matplotlib figure and axis.
     """
     fig, ax = _fig_ax(ax)
-    for contour in ordered_contours_from_labels(labels, background=background).values():
+    if contours is None:
+        contours = ordered_contours_from_labels(labels, background=background)
+    for contour in contours.values():
         if len(contour):
             ax.plot(contour[:, 1], contour[:, 0], color=color, linewidth=linewidth)
     if title is not None:
