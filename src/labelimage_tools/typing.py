@@ -15,3 +15,5 @@ Node = int | np.integer
 Adj = Mapping[Node, Iterable[Node]]
 Neig = dict[Node, np.ndarray]
 Cont = dict[Node, np.ndarray]
+
+LabelValue = int | np.integer | float | np.floating

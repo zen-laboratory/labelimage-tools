@@ -8,6 +8,7 @@ from scipy import ndimage as ndi
 from ._bbox import label_slices
 from .io import load_img
 from .validation import validate_label_image, unique_labels, validate_label_mapping, validate_label_value
+from .typing import LabelValue
 
 
 def _structure(structure=None) -> np.ndarray:
@@ -520,7 +521,7 @@ def load_image_pipeline(
     return im
 
 
-def replace_labels(im, mapping, *, background=0, default_missing: int | None = 0) -> np.ndarray:
+def replace_labels(im, mapping, *, background=0, default_missing: LabelValue | None = 0) -> np.ndarray:
     """
     Replace label values in a label image according to a mapping.
 
@@ -587,3 +588,121 @@ def replace_labels(im, mapping, *, background=0, default_missing: int | None = 0
 
 
     return out
+
+def image_has_holes(labels, background=0) -> tuple[bool, np.ndarray]:
+    """
+    Check whether a label image has internal background holes.
+
+    Internal holes are background pixels that are fully enclosed by foreground.
+
+    Parameters
+    ----------
+    labels : np.ndarray
+        2-D integer label image.
+    background : int, optional
+        Background label. Default is ``0``. 
+
+    Returns
+    -------
+    has_holes : bool
+        True if at least one internal hole exists.
+    holes : np.ndarray of bool
+        Boolean mask of internal hole pixels.
+    """
+    
+    labels = validate_label_image(labels, background=background)
+    fg = labels != background
+
+    # Internal holes are background components fully enclosed by foreground.
+    filled_fg = ndi.binary_fill_holes(fg)
+    holes = filled_fg & (~fg)
+    has_holes =  bool(np.any(holes))
+
+    return has_holes, holes
+
+
+def image_has_hole_sentinel(labels, background=0, hole_sentinel: LabelValue | None = 10_000) -> tuple[bool, np.ndarray]:
+    """
+    Check whether a label image contains sentinel-filled internal holes.
+
+    Sentinel-filled holes are labels produced by ``fill_internal_gaps_edt``
+    when pixels in an internal hole are farther than ``max_distance`` from
+    foreground. These sentinel labels are expected to start at
+    ``hole_sentinel`` and continue with consecutive integer values.
+
+        Parameters
+    ----------
+    labels : np.ndarray
+        2-D integer label image.
+    background : int, optional
+        Background label. Default is ``0``.
+    hole_sentinel : int or None, optional
+        The sentinel label used to fill holes. If None, sentinel label is derivedn form the
+        label distribution: if a continuos string of labels is present at the upper end of
+        the label distribution, and this string is separated by a significant gap from the
+        rest of the label distribution, then the first label in this string is used as the
+        sentinel label. If no such string is found, ValueError is raised.
+        Default is ``10_000``.
+    
+    Returns
+    -------
+    bool
+        True if there are any internal holes that would be filled with sentinel labels, False otherwise.
+    np.ndarray
+        Boolean array indicating the locations of the internal holes that would be filled with sentinel labels.
+    """
+    labels = validate_label_image(labels, background=background)
+    ulabels = unique_labels(labels, background=background)
+
+    if hole_sentinel is None:
+        hole_sentinel = _infer_hole_sentinel_from_labels(ulabels)
+
+    if not isinstance(hole_sentinel, (int, np.integer)):
+        raise ValueError("hole_sentinel must be an integer or None.")
+
+    sentinel_mask = labels >= int(hole_sentinel)
+
+    return bool(np.any(sentinel_mask)), sentinel_mask
+
+
+def _infer_hole_sentinel_from_labels(ulabels: np.ndarray) -> int:
+    """Infer the first label of a high-valued consecutive sentinel suffix."""
+    ulabels = np.asarray(ulabels)
+    if ulabels.size == 0:
+        raise ValueError("No labels found; could not determine sentinel label.")
+
+    if ulabels.size == 1:
+        raise ValueError("Only one label found; could not infer sentinel label.")
+
+    # Find the start of the consecutive suffix at the upper end.
+    start = ulabels.size - 1
+    while start > 0 and ulabels[start] == ulabels[start - 1] + 1:
+        start -= 1
+
+    # If all labels are one continuous run, there is no separated sentinel block.
+    if start == 0:
+        raise ValueError(
+            "Could not determine sentinel label: labels form one continuous run."
+        )
+
+    candidate = int(ulabels[start])
+    pre_sentinel_gap = int(ulabels[start] - ulabels[start - 1])
+
+    gaps = np.diff(ulabels)
+
+    # Estimate normal gap size without the large pre-sentinel gap and without
+    # the internal consecutive suffix gaps.
+    baseline_gaps = np.concatenate([gaps[: start - 1], gaps[start:]])
+    if baseline_gaps.size == 0:
+        baseline_gaps = np.array([1])
+
+    q25, q75 = np.percentile(baseline_gaps, [25, 75])
+    iqr_gap = q75 - q25
+    median_gap = np.median(baseline_gaps)
+
+    if pre_sentinel_gap > median_gap + 1.5 * iqr_gap:
+        return candidate
+
+    raise ValueError(
+        "Could not determine a suitable sentinel label from the label distribution."
+    )
