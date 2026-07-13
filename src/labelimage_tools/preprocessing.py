@@ -7,7 +7,7 @@ from scipy import ndimage as ndi
 
 from ._bbox import label_slices
 from .io import load_img
-from .validation import validate_label_image
+from .validation import validate_label_image, unique_labels, validate_label_mapping, validate_label_value
 
 
 def _structure(structure=None) -> np.ndarray:
@@ -520,9 +520,17 @@ def load_image_pipeline(
     return im
 
 
-def replace_labels(im, mapping: dict[int, int], background=0, default_missing: int | None= 0) -> np.ndarray:
+def replace_labels(im, mapping, *, background=0, default_missing: int | None = 0) -> np.ndarray:
     """
     Replace label values in a label image according to a mapping.
+
+    Conceptually, this function performs
+    ```python
+    for old_label, new_label in mapping.items():
+        im[im == old_label] = new_label
+    ```
+    but it uses a windowed approach to avoid creating a full-size boolean mask for each label, 
+    which accelerates processing significantly for large images with many labels.
 
     Parameters
     ----------
@@ -542,15 +550,28 @@ def replace_labels(im, mapping: dict[int, int], background=0, default_missing: i
     np.ndarray
         Label image with replaced labels.
     """
+    # Validate all input dtypes
     labels = validate_label_image(im, background=background)
+    background = validate_label_value(background, name="background")
+    mapping = validate_label_mapping(mapping)
+    if default_missing is not None:
+        default_missing = validate_label_value(default_missing,name="default_missing")
 
-    # Ensure the new dtype is compatible with int, and find the most suitable dtype for the output.
-    new_dtype = np.result_type(*mapping.values())
-    if not np.issubdtype(new_dtype, np.integer):
-        raise ValueError("Mapping values must be integers.")
+    # Get the output dtype that can accommodate all input types
+    dtype_parts = [labels.dtype, np.asarray(background).dtype]
 
-    out = np.full(labels.shape, background, dtype=new_dtype)
-    
+    if mapping:
+        dtype_parts.append(np.asarray(list(mapping.values())).dtype)
+
+    if default_missing is None:
+        # Unmapped labels may be preserved.
+        dtype_parts.append(labels.dtype)
+    else:
+        dtype_parts.append(np.asarray(default_missing).dtype)
+
+    out_dtype = np.result_type(*dtype_parts)
+    out = np.full(labels.shape, background, dtype=out_dtype)
+
     # Check if background needs to be remapped as well
     include_background = background in mapping
 
@@ -560,7 +581,9 @@ def replace_labels(im, mapping: dict[int, int], background=0, default_missing: i
             new_label = mapping[old_label]
             out[slc][labels[slc] == old_label] = new_label
         else:
+            # Use default value if not in mapping
             missing_sentinel = default_missing if default_missing is not None else old_label
-            out[slc][labels[slc] == old_label] = missing_sentinel # Use default value if not in mapping
+            out[slc][labels[slc] == old_label] = missing_sentinel
+
 
     return out
