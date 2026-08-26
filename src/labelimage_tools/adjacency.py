@@ -403,9 +403,11 @@ def adjacency_with_contact_from_labels(
     bridge_holes : bool, optional
         If ``True``, infer contacts between labels bordering internal holes.
     max_hole_area : int, optional
-        Skip holes containing more than this many pixels.
+        Skip holes containing more than this many pixels. If ``None``, all holes are
+        eligible for bridging.
     max_hole_distance : float, optional
-        Maximum distance between hole-facing pixels for an inferred pair.
+        Maximum distance between hole-facing pixels for an inferred pair. If ``None``,
+        all hole-facing pairs are eligible for bridging.
     inferred_contact : float, optional
         Contact contribution for inferred pairs not created by local EDT fill.
 
